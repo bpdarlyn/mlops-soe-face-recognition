@@ -6,11 +6,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /srv
 RUN pip install --no-cache-dir mlflow==2.14.3 PyMySQL==1.1.1 cryptography
 
+# Create artifacts directory with proper permissions
+RUN mkdir -p /mlflow/artifacts && chmod 777 /mlflow/artifacts
+
 # MLflow leerá estas vars desde docker-compose
 ENV ARTIFACT_ROOT=/mlflow/artifacts
 EXPOSE 5000
 
 CMD sh -c 'mlflow server \
   --backend-store-uri mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE} \
-  --default-artifact-root ${ARTIFACT_ROOT} \
+  --default-artifact-root file:///mlflow/artifacts \
   --host 0.0.0.0 --port 5000'

@@ -16,7 +16,7 @@ FastAPI service for real-time face detection, recognition, age and gender estima
 ### Core Endpoints
 
 #### `POST /analyze`
-Analyze an uploaded image for faces.
+Analyze an uploaded image for faces, age, gender, and identity.
 
 **Request:**
 - `file`: Image file (JPG, PNG, etc.)
@@ -37,6 +37,29 @@ Analyze an uploaded image for faces.
     }
   ],
   "message": "Successfully analyzed 1 face(s)"
+}
+```
+
+#### `POST /infer_age_genre`
+Infer only age and gender from an uploaded image (no face recognition or database storage).
+
+**Request:**
+- `file`: Image file (JPG, PNG, etc.)
+
+**Response:**
+```json
+{
+  "success": true,
+  "faces": [
+    {
+      "bbox": {"x": 100, "y": 50, "width": 150, "height": 200},
+      "confidence": 0.95,
+      "age": 25.5,
+      "gender": "female",
+      "gender_confidence": 0.85
+    }
+  ],
+  "message": "Successfully analyzed 1 face(s) for age and gender"
 }
 ```
 
@@ -99,8 +122,11 @@ Health check endpoint.
 # Health check
 curl http://localhost:8000/health
 
-# Analyze a face
+# Analyze a face (full analysis with identity)
 curl -X POST -F "file=@photo.jpg" http://localhost:8000/analyze
+
+# Infer only age and gender
+curl -X POST -F "file=@photo.jpg" http://localhost:8000/infer_age_genre
 
 # Register a known face
 curl -X POST -F "file=@john.jpg" -F "person_name=John Doe" http://localhost:8000/register
@@ -114,7 +140,7 @@ curl http://localhost:8000/stats
 ```python
 import requests
 
-# Analyze a face
+# Full analysis with identity
 with open('photo.jpg', 'rb') as f:
     response = requests.post(
         'http://localhost:8000/analyze',
@@ -122,6 +148,16 @@ with open('photo.jpg', 'rb') as f:
     )
     result = response.json()
     print(f"Found {len(result['faces'])} faces")
+
+# Only age and gender inference
+with open('photo.jpg', 'rb') as f:
+    response = requests.post(
+        'http://localhost:8000/infer_age_genre',
+        files={'file': f}
+    )
+    result = response.json()
+    for face in result['faces']:
+        print(f"Age: {face['age']:.1f}, Gender: {face['gender']}")
 
 # Register a known face
 with open('john.jpg', 'rb') as f:

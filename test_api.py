@@ -54,6 +54,39 @@ def test_analyze_face(image_path: str):
         print(f"Face analysis failed: {e}")
         return False
 
+def test_infer_age_genre(image_path: str):
+    """Test age and gender inference with an image"""
+    if not Path(image_path).exists():
+        print(f"Image file not found: {image_path}")
+        return False
+    
+    try:
+        with open(image_path, 'rb') as f:
+            files = {'file': f}
+            response = requests.post("http://localhost:8000/infer_age_genre", files=files)
+        
+        print(f"Age/Gender inference status: {response.status_code}")
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"Success: {result['success']}")
+            print(f"Faces analyzed: {len(result['faces'])}")
+            
+            for i, face in enumerate(result['faces']):
+                print(f"  Face {i+1}:")
+                print(f"    Bounding box: {face['bbox']}")
+                print(f"    Detection confidence: {face['confidence']:.2f}")
+                print(f"    Age: {face['age']:.1f} years")
+                print(f"    Gender: {face['gender']} (confidence: {face['gender_confidence']:.2f})")
+        else:
+            print(f"Error: {response.text}")
+        
+        return response.status_code == 200
+        
+    except Exception as e:
+        print(f"Age/Gender inference failed: {e}")
+        return False
+
 def test_stats():
     """Test the statistics endpoint"""
     try:
@@ -96,14 +129,23 @@ def main():
     # Test face analysis if image provided
     if len(sys.argv) > 1:
         image_path = sys.argv[1]
+        
         print(f"\n3. Testing face analysis with: {image_path}")
         if not test_analyze_face(image_path):
             print("❌ Face analysis test failed")
             return 1
         print("✅ Face analysis test passed")
+        
+        print(f"\n4. Testing age/gender inference with: {image_path}")
+        if not test_infer_age_genre(image_path):
+            print("❌ Age/Gender inference test failed")
+            return 1
+        print("✅ Age/Gender inference test passed")
+        
     else:
-        print("\n3. Skipping face analysis test (no image provided)")
+        print("\n3. Skipping image tests (no image provided)")
         print("   Usage: python test_api.py <path_to_image>")
+        print("   This will test both /analyze and /infer_age_genre endpoints")
     
     print("\n🎉 All tests passed!")
     return 0

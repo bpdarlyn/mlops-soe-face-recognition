@@ -30,6 +30,11 @@ class FaceAnalyticsService:
         self.model_alias = model_alias
         self.similarity_threshold = similarity_threshold
         
+        # Initialize model attributes
+        self.full_model = None
+        self.embedding_model = None
+        self.age_gender_model = None
+        
         # Initialize MLflow
         self.mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
         mlflow.set_tracking_uri(self.mlflow_uri)

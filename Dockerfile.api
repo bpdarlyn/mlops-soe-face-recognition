@@ -4,21 +4,12 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install minimal system dependencies
 RUN apt-get update && apt-get install -y \
+    curl \
     libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
     libgomp1 \
-    libgcc-s1 \
-    libstdc++6 \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libavcodec58 \
-    libavformat58 \
-    libswscale5 \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better Docker layer caching

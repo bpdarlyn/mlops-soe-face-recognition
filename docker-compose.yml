@@ -47,6 +47,7 @@ services:
       KAGGLE_KEY: ${KAGGLE_KEY}
     volumes:
       - ./:/app
+      - mlflow_artifacts:/mlflow/artifacts
     working_dir: /app
     tty: true
     stdin_open: true

@@ -41,6 +41,18 @@ class FaceData(BaseModel):
     identity: Optional[str] = None  # "known" or "unknown"
     person_id: Optional[str] = None
 
+class AgeGenderResponse(BaseModel):
+    success: bool
+    faces: List[Dict[str, Any]]
+    message: Optional[str] = None
+    
+class AgeGenderFaceData(BaseModel):
+    bbox: Dict[str, int]  # {"x": int, "y": int, "width": int, "height": int}
+    confidence: float
+    age: float
+    gender: str  # "male" or "female"
+    gender_confidence: float
+
 # Global services
 face_detector = None
 face_analytics_service = None
@@ -182,6 +194,96 @@ async def analyze_face(
         
     except Exception as e:
         logger.error(f"Error processing image: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing image: {str(e)}"
+        )
+
+@app.post("/infer_age_genre", response_model=AgeGenderResponse)
+async def infer_age_genre(file: UploadFile = File(...)):
+    """
+    Infer age and gender from an uploaded image using the dedicated age/gender model.
+    
+    This endpoint uses only the age/gender model trained with UTKFace dataset,
+    without face recognition or database storage.
+    
+    Args:
+        file: Image file to analyze (JPG, PNG, etc.)
+        
+    Returns:
+        JSON with age and gender predictions for detected faces:
+        - bbox: bounding box coordinates
+        - confidence: face detection confidence
+        - age: estimated age (years)
+        - gender: estimated gender (male/female)
+        - gender_confidence: gender prediction confidence (0-1)
+    """
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400, 
+            detail="File must be an image (JPG, PNG, etc.)"
+        )
+    
+    try:
+        # Read image
+        image_bytes = await file.read()
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convert to OpenCV format
+        image_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        
+        # Detect faces
+        faces = face_detector.detect_faces(image_cv)
+        
+        if not faces:
+            return AgeGenderResponse(
+                success=True,
+                faces=[],
+                message="No faces detected in the image"
+            )
+        
+        # Analyze each detected face for age and gender only
+        analyzed_faces = []
+        for face in faces:
+            try:
+                # Extract face region
+                x, y, w, h = face["bbox"]
+                face_roi = image_cv[y:y+h, x:x+w]
+                
+                # Get age and gender predictions using dedicated model
+                age, gender, gender_conf = face_analytics_service.predict_age_gender(face_roi)
+                
+                if age is not None and gender is not None and gender_conf is not None:
+                    analyzed_face = AgeGenderFaceData(
+                        bbox={
+                            "x": int(x),
+                            "y": int(y), 
+                            "width": int(w),
+                            "height": int(h)
+                        },
+                        confidence=float(face["confidence"]),
+                        age=float(age),
+                        gender=gender,
+                        gender_confidence=float(gender_conf)
+                    )
+                    
+                    analyzed_faces.append(analyzed_face.dict())
+                else:
+                    logger.warning(f"Could not predict age/gender for face at {face['bbox']}")
+                
+            except Exception as e:
+                logger.error(f"Error analyzing face for age/gender: {e}")
+                # Continue with other faces even if one fails
+                continue
+        
+        return AgeGenderResponse(
+            success=True,
+            faces=analyzed_faces,
+            message=f"Successfully analyzed {len(analyzed_faces)} face(s) for age and gender"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error processing image for age/gender: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Error processing image: {str(e)}"
