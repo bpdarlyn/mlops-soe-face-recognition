@@ -51,6 +51,36 @@ services:
     tty: true
     stdin_open: true
 
+  face-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: face-analytics-api
+    restart: unless-stopped
+    depends_on:
+      - db
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MYSQL_HOST: db
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      PYTHONPATH: /app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+      - api_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   mysql_data:
   mlflow_artifacts:
+  api_uploads:
