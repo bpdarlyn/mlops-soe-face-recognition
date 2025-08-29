@@ -1,0 +1,5 @@
+.idea
+.env
+*.jpg
+*.png
+artifacts/*

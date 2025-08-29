@@ -1,0 +1,17 @@
+FROM python:3.10-slim
+
+# libs mínimas para TF/ONNX/NumPy/OpenCV
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git ffmpeg libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.trainer.txt .
+RUN pip install --no-cache-dir -r requirements.trainer.txt
+
+# copia código (también montamos volumen en compose)
+COPY training ./training
+COPY tests ./tests
+
+# por defecto, abrirá shell; usaremos `docker compose run ...`
+CMD ["bash"]
