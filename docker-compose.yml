@@ -43,6 +43,8 @@ services:
       MLFLOW_TRACKING_URI: http://mlflow:5000
       TF_CPP_MIN_LOG_LEVEL: "2"
       PYTHONPATH: /app
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME}
+      KAGGLE_KEY: ${KAGGLE_KEY}
     volumes:
       - ./:/app
     working_dir: /app

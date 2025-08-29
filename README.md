@@ -18,6 +18,12 @@
 mkdir -p data/UTKFace
 
 # descarga completa
+```bash
 docker compose run --rm trainer python scripts/download_utkface.py
+docker compose run --rm trainer python scripts/prepare_utk_face.py
+```
 # o para probar rápido:
+```bash
 docker compose run --rm trainer python scripts/download_utkface.py --limit 200
+docker compose run --rm trainer python scripts/prepare_utk_face.py
+```

@@ -1,0 +1,14 @@
+{
+  "train_split": 0.7,
+  "val_split": 0.15,
+  "test_split": 0.15,
+  "min_images_per_person": 5,
+  "seed": 42,
+  "total_valid_persons": 2940,
+  "train_persons": 2058,
+  "val_persons": 441,
+  "test_persons": 441,
+  "train_images": 150527,
+  "val_images": 33501,
+  "test_images": 31056
+}
