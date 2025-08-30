@@ -116,25 +116,6 @@ docker compose run --rm trainer python scripts/download_utkface.py --limit 500
 docker compose run --rm trainer python scripts/prepare_utk_face.py
 ```
 
-### Preparar QMUL-SurvFace
-
-```bash
-# Crear directorio y colocar dataset manualmente
-mkdir -p data/face_identification/training_set
-
-# El dataset debe tener estructura:
-# data/face_identification/training_set/
-#   ├── PersonID_1/
-#   │   ├── 001_Camera1_image1.jpg
-#   │   └── 002_Camera2_image2.jpg
-#   └── PersonID_2/
-#       ├── 001_Camera1_image1.jpg
-#       └── 002_Camera2_image2.jpg
-
-# Procesar y dividir dataset
-docker compose run --rm trainer python training/datasets/survface.py
-```
-
 ## 🤖 Entrenamiento de Modelos
 
 ### 1. Modelo de Prueba (Smoke Test)
@@ -151,54 +132,21 @@ docker compose run --rm trainer python training/train_smoke_tf.py
 docker compose run --rm trainer python training/train_age_gender_tf.py
 ```
 
-### 3. Modelo de Reconocimiento Facial
-
-```bash
-# Entrenar con QMUL-SurvFace dataset
-docker compose run --rm trainer python training/train_face_recognition_tf.py
-```
-
 ### 4. Verificar Entrenamientos
 
 Accede a MLflow UI: http://localhost:5001
 
-- Ve experimentos: `AgeGender-UTKFace`, `FaceRecognition-SurvFace`
+- Ve experimentos: `AgeGender-UTKFace`
 - Revisa métricas, parámetros y artefactos
 - Compara diferentes runs
 
 ## 📦 Gestión de Modelos con Scripts
 
-### Registrar Modelos
-
-```bash
-# Registrar modelo desde el último run exitoso
-docker compose run --rm trainer python scripts/register_model.py
-
-# Verificar modelos registrados
-docker compose run --rm trainer python scripts/check_models.py
-```
-
 ### Deploy Automático
 
 ```bash
 # Encuentra el mejor modelo y lo despliega a producción
-docker compose run --rm trainer python scripts/deploy_model.py
-```
-
-### Utilidades de Gestión
-
-```bash
-# Ver rendimiento de todas las versiones
-docker compose run --rm trainer python scripts/model_utils.py performance
-
-# Hacer rollback a una versión específica
-docker compose run --rm trainer python scripts/model_utils.py rollback 3
-
-# Limpiar versiones antiguas (mantener solo 5)
-docker compose run --rm trainer python scripts/model_utils.py clean --keep 5
-
-# Comparar dos versiones
-docker compose run --rm trainer python scripts/model_utils.py compare 2 4
+docker compose run --rm trainer python scripts/deploy_model.py --model-type age-gender --stage prod
 ```
 
 ## 🔌 API de Análisis Facial
@@ -218,77 +166,18 @@ curl http://localhost:8000/health
 
 ### Endpoints Disponibles
 
-#### 1. Analizar Imagen
-```bash
-# Subir imagen para análisis completo
-curl -X POST -F "file=@path/to/image.jpg" http://localhost:8000/analyze
-```
-
-**Respuesta:**
-```json
-{
-  "success": true,
-  "faces": [
-    {
-      "bbox": {"x": 100, "y": 50, "width": 150, "height": 200},
-      "confidence": 0.95,
-      "age": 25.5,
-      "gender": "female",
-      "gender_confidence": 0.85,
-      "identity": "unknown",
-      "person_id": "unknown_1703123456_7890"
-    }
-  ],
-  "message": "Successfully analyzed 1 face(s)"
-}
-```
-
-#### 2. Registrar Rostro Conocido
+#### 1. Inferir edad y genero
 ```bash
 curl -X POST \
   -F "file=@john.jpg" \
-  -F "person_name=John Doe" \
-  http://localhost:8000/register
+  http://localhost:8000/infer_age_genre
 ```
 
-#### 3. Estadísticas
+#### 2. Estadísticas
 ```bash
 curl http://localhost:8000/stats
 ```
 
-#### 4. Buscar por Nombre
-```bash
-curl "http://localhost:8000/search?name=John"
-```
-
-### Pruebas de la API
-
-```bash
-# Script de pruebas integrado
-python test_api.py path/to/test/image.jpg
-
-# Solo health check
-python test_api.py
-```
-
-## 🐍 Uso con Python
-
-```python
-import requests
-
-# Analizar una imagen
-with open('photo.jpg', 'rb') as f:
-    response = requests.post(
-        'http://localhost:8000/analyze',
-        files={'file': f}
-    )
-    result = response.json()
-    
-    for face in result['faces']:
-        print(f"Edad: {face['age']}")
-        print(f"Género: {face['gender']}")
-        print(f"Conocido: {face['identity']}")
-```
 
 ## 🔧 Desarrollo y Depuración
 
