@@ -82,6 +82,21 @@ services:
       retries: 3
       start_period: 40s
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: face-analytics-frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend/:/app
+    depends_on:
+      - face-api
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://face-api:8000
+
 volumes:
   mysql_data:
   mlflow_artifacts:
