@@ -72,7 +72,8 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./artifacts:/app/artifacts:ro
+      - ./:/app
+      - mlflow_artifacts:/mlflow/artifacts
       - api_uploads:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

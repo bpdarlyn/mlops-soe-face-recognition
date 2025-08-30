@@ -16,7 +16,7 @@ class FaceAnalyticsService:
     
     def __init__(self, 
                  model_name: str = "face-analytics-model",
-                 age_gender_model_name: str = "age-gender-model",
+                 age_gender_model_name: str = "nn-age-gender-model",
                  model_alias: str = "prod",
                  similarity_threshold: float = 0.8):
         """
@@ -27,14 +27,14 @@ class FaceAnalyticsService:
             model_alias: Model alias to load (e.g., "prod", "latest")
             similarity_threshold: Threshold for face similarity matching
         """
-        self.model_name = model_name
+        # self.model_name = model_name
         self.age_gender_model_name = age_gender_model_name
         self.model_alias = model_alias
         self.similarity_threshold = similarity_threshold
         
         # Initialize model attributes
-        self.full_model = None
-        self.embedding_model = None
+        # self.full_model = None
+        # self.embedding_model = None
         self.age_gender_model = None
         
         # Initialize MLflow
@@ -50,58 +50,76 @@ class FaceAnalyticsService:
             logger.info(f"Loading models from MLflow: {self.mlflow_uri}")
             
             # Try to load age/gender model directly from MLflow first
-            age_gender_uri = f"models:/{self.age_gender_model_name}/{self.model_alias}"
             try:
+                from mlflow import MlflowClient
+                client = MlflowClient()
+                
+                # Get model version by alias first
+                model_version = client.get_model_version_by_alias(
+                    name=self.age_gender_model_name,
+                    alias=self.model_alias
+                )
+                
+                # Load using the specific version
+                age_gender_uri = f"models:/{self.age_gender_model_name}/{model_version.version}"
                 self.age_gender_model = mlflow.tensorflow.load_model(age_gender_uri)
-                logger.info(f"Loaded age/gender model directly from MLflow: {age_gender_uri}")
+                logger.info(f"Loaded age/gender model from MLflow alias '{self.model_alias}': {age_gender_uri}")
+                
             except Exception as e:
                 logger.warning(f"Could not load age/gender model from MLflow: {e}")
-                self.age_gender_model = None
+                # Fallback: try loading with model alias directly (some MLflow versions support this)
+                try:
+                    age_gender_uri = f"models:/{self.age_gender_model_name}@{self.model_alias}"
+                    self.age_gender_model = mlflow.tensorflow.load_model(age_gender_uri)
+                    logger.info(f"Loaded age/gender model using @ syntax: {age_gender_uri}")
+                except Exception as e2:
+                    logger.warning(f"Fallback also failed: {e2}")
+                    self.age_gender_model = None
             
             # Try to load the full model
-            model_uri = f"models:/{self.model_name}/{self.model_alias}"
-            try:
-                self.full_model = mlflow.tensorflow.load_model(model_uri)
-                logger.info(f"Loaded full model: {model_uri}")
-                
-                # Try to create embedding model (extract up to embedding layer)
-                try:
-                    # Find the embedding layer
-                    embedding_layer_name = "face_embeddings_normalized"
-                    if any(layer.name == embedding_layer_name for layer in self.full_model.layers):
-                        embedding_output = self.full_model.get_layer(embedding_layer_name).output
-                        self.embedding_model = tf.keras.Model(
-                            inputs=self.full_model.input,
-                            outputs=embedding_output,
-                            name="embedding_extractor"
-                        )
-                        logger.info("Created embedding model from full model")
-                except Exception as e:
-                    logger.warning(f"Could not create embedding model: {e}")
-                
-                # If age/gender model wasn't loaded directly, try to extract from full model
-                if self.age_gender_model is None:
-                    try:
-                        age_output = self.full_model.get_layer("age").output
-                        gender_output = self.full_model.get_layer("gender").output
-                        self.age_gender_model = tf.keras.Model(
-                            inputs=self.full_model.input,
-                            outputs=[age_output, gender_output],
-                            name="age_gender_extractor"
-                        )
-                        logger.info("Created age/gender model from full model")
-                    except Exception as e:
-                        logger.warning(f"Could not create age/gender model from full model: {e}")
-                    
-            except Exception as e:
-                logger.error(f"Could not load full model: {e}")
-                # Try to load fallback models
-                self._load_fallback_models()
+            # model_uri = f"models:/{self.model_name}/{self.model_alias}"
+            # try:
+            #     self.full_model = mlflow.tensorflow.load_model(model_uri)
+            #     logger.info(f"Loaded full model: {model_uri}")
+            #
+            #     # Try to create embedding model (extract up to embedding layer)
+            #     try:
+            #         # Find the embedding layer
+            #         embedding_layer_name = "face_embeddings_normalized"
+            #         if any(layer.name == embedding_layer_name for layer in self.full_model.layers):
+            #             embedding_output = self.full_model.get_layer(embedding_layer_name).output
+            #             self.embedding_model = tf.keras.Model(
+            #                 inputs=self.full_model.input,
+            #                 outputs=embedding_output,
+            #                 name="embedding_extractor"
+            #             )
+            #             logger.info("Created embedding model from full model")
+            #     except Exception as e:
+            #         logger.warning(f"Could not create embedding model: {e}")
+            #
+            #     # If age/gender model wasn't loaded directly, try to extract from full model
+            #     if self.age_gender_model is None:
+            #         try:
+            #             age_output = self.full_model.get_layer("age").output
+            #             gender_output = self.full_model.get_layer("gender").output
+            #             self.age_gender_model = tf.keras.Model(
+            #                 inputs=self.full_model.input,
+            #                 outputs=[age_output, gender_output],
+            #                 name="age_gender_extractor"
+            #             )
+            #             logger.info("Created age/gender model from full model")
+            #         except Exception as e:
+            #             logger.warning(f"Could not create age/gender model from full model: {e}")
+            #
+            # except Exception as e:
+            #     logger.error(f"Could not load full model: {e}")
+            #     # Try to load fallback models
+            #     self._load_fallback_models()
         
         except Exception as e:
             logger.error(f"Error loading models: {e}")
             # Load fallback models or create dummy ones
-            self._load_fallback_models()
+            # self._load_fallback_models()
     
     def _load_fallback_models(self):
         """Load fallback models or create dummy ones"""

@@ -382,15 +382,6 @@ docker compose restart mlflow
 # O aumentar memoria Docker
 ```
 
-### API no encuentra modelos
-```bash
-# Verificar que hay modelos registrados
-docker compose run --rm trainer python scripts/check_models.py
-
-# Registrar modelo manualmente
-docker compose run --rm trainer python scripts/register_model.py
-```
-
 ### Base de datos llena
 ```bash
 # Limpiar detecciones antiguas

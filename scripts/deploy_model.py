@@ -31,11 +31,10 @@ MODEL_CONFIGS = {
     },
     "age-gender": {
         "experiment_name": "AgeGender-UTKFace",
-        "model_name": "age-gender-model",
-        "primary_metric": "val_gender_acc",  # o la métrica principal que uses
+        "model_name": "nn-age-gender-model",  # Debe coincidir con registered_model_name del training
+        "primary_metric": "val_gender_acc",
         "required_artifacts": {
-            "models": ["age_gender_model"],
-            "onnx": ["age_gender.onnx"],
+            "onnx": ["nn-age-gender.onnx"],
             "plots": ["curve_gender_acc.png", "cm_gender.png"]
         },
         "validation_metrics": ["val_gender_acc", "val_age_mae"]
@@ -193,6 +192,12 @@ def main():
         default="face-recognition",
         help="Tipo de modelo a deployar"
     )
+    parser.add_argument(
+        "--stage",
+        choices=["dev", "pre", "prod"],
+        default="prod",
+        help="Stage del modelo (dev, pre, prod)"
+    )
     args = parser.parse_args()
     
     # Obtener configuración del modelo
@@ -225,58 +230,59 @@ def main():
                 print("Deploy cancelado")
                 sys.exit(1)
         
-        # 4. Registro del modelo
-        print(f"\n📦 === Registro del Modelo ===")
+        # 4. Encontrar la versión del modelo ya registrada
+        print(f"\n📦 === Búsqueda de Versión del Modelo ===")
         try:
             model_name = config['model_name']
             run_id = best_run.info.run_id
             
-            # Buscar si el modelo ya existe en el registry
+            # Buscar la versión del modelo asociada con este run
+            model_versions = client.search_model_versions(f"name='{model_name}' and run_id='{run_id}'")
+            
+            if not model_versions:
+                raise ValueError(f"No se encontró versión del modelo para el run {run_id}")
+            
+            # Usar la primera versión encontrada (debería ser única)
+            model_version = model_versions[0]
+            print(f"✅ Versión encontrada: v{model_version.version} (Run: {run_id[:8]})")
+            
+            # Forzar uso de aliases - crear si no existe
+            stage_alias = args.stage
+            print(f"🚀 Desplegando en stage '{stage_alias}' usando aliases...")
+            
+            # Verificar si el modelo registrado existe, si no crearlo
             try:
                 registered_model = client.get_registered_model(model_name)
-                print(f"✅ Modelo '{model_name}' ya existe en el registry")
+                print(f"✅ Modelo registrado '{model_name}' existe")
             except:
-                # Crear el modelo registrado si no existe
                 print(f"📝 Creando modelo registrado '{model_name}'...")
-                registered_model = client.create_registered_model(
+                client.create_registered_model(
                     name=model_name,
                     description=f"Modelo {args.model_type} entrenado automáticamente"
                 )
-                print(f"✅ Modelo '{model_name}' creado en el registry")
+                print(f"✅ Modelo registrado '{model_name}' creado")
             
-            # Crear nueva versión del modelo
-            print(f"📦 Registrando nueva versión del modelo...")
-            model_version = client.create_model_version(
-                name=model_name,
-                source=f"runs:/{run_id}/models/{config['required_artifacts']['models'][0]}",
-                run_id=run_id,
-                description=f"Versión automática de {args.model_type} - Run {run_id[:8]}"
-            )
+            # Limpiar TODOS los aliases existentes (dev, pre, prod)
+            all_aliases = ["dev", "pre", "prod"]
+            print(f"🧹 Limpiando aliases existentes...")
             
-            print(f"✅ Nueva versión creada: v{model_version.version}")
-            
-            # Transicionar a producción
-            print(f"🚀 Transicionando a producción...")
-            
-            # Primero, archivar la versión actual en producción (si existe)
             try:
-                current_prod = client.get_model_version_by_alias(model_name, "prod")
-                client.delete_model_version_alias(model_name, "prod")
-                print(f"✅ Versión anterior v{current_prod.version} removida de producción")
+                client.delete_model_version_alias(model_name, stage_alias)
+                print(f"✅ Alias '{stage_alias}' removido")
             except:
-                print("ℹ️  No había versión anterior en producción")
+                print(f"ℹ️  Alias '{stage_alias}' no existía")
             
-            # Establecer nueva versión como producción
-            client.set_model_version_alias(
+            # Establecer el nuevo alias para el stage especificado
+            print(f"🏷️  Estableciendo alias '{stage_alias}'...")
+            client.set_registered_model_alias(
                 name=model_name,
                 version=model_version.version,
-                alias="prod"
+                alias=stage_alias
             )
-            
-            print(f"✅ Versión v{model_version.version} establecida como producción")
+            print(f"✅ Versión v{model_version.version} establecida en stage '{stage_alias}'")
             
         except Exception as e:
-            print(f"❌ Error en el registro del modelo: {e}")
+            print(f"❌ Error en la transición del modelo: {e}")
             import traceback
             traceback.print_exc()
             sys.exit(1)
@@ -285,14 +291,18 @@ def main():
         print(f"\n🔍 === Verificación Final ===")
         try:
             model_name = config['model_name']
-            prod_model = client.get_model_version_by_alias(model_name, "prod")
-            print(f"✅ Modelo en producción verificado:")
+            stage_alias = args.stage
+            
+            # Buscar usando el alias del stage especificado
+            deployed_model = client.get_model_version_by_alias(model_name, stage_alias)
+            print(f"✅ Modelo en stage '{stage_alias}' verificado:")
             print(f"   - Nombre: {model_name}")
-            print(f"   - Versión: v{prod_model.version}")
-            print(f"   - URI: models:/{model_name}/prod")
+            print(f"   - Versión: v{deployed_model.version}")
+            print(f"   - Alias: {stage_alias}")
+            print(f"   - URI: models:/{model_name}/{stage_alias}")
             
             # Verificar que los artefactos sean accesibles
-            run_id = prod_model.run_id
+            run_id = deployed_model.run_id
             required_artifacts = config['required_artifacts']
             
             for artifact_path, expected_files in required_artifacts.items():
@@ -315,9 +325,12 @@ def main():
         
         # 6. Información para FastAPI
         model_name = config['model_name']
+        stage_alias = args.stage
+        model_uri = f"models:/{model_name}/{stage_alias}"
+        
         print(f"\n🎯 === Información para FastAPI ===")
         print(f"""
-Para usar en tu aplicación FastAPI:
+Para usar en tu aplicación FastAPI (stage: {stage_alias}):
 
 ```python
 import mlflow
@@ -325,15 +338,20 @@ import mlflow
 # Configurar MLflow
 mlflow.set_tracking_uri("{MLFLOW_URI}")
 
-# Cargar modelo
-model = mlflow.tensorflow.load_model("models:/{model_name}/prod")
+# Cargar modelo usando alias {stage_alias}
+model = mlflow.tensorflow.load_model("{model_uri}")
 
 # O usando pyfunc para predicciones
-model_pyfunc = mlflow.pyfunc.load_model("models:/{model_name}/prod")
+model_pyfunc = mlflow.pyfunc.load_model("{model_uri}")
 predictions = model_pyfunc.predict(input_data)
 ```
 
-Modelo {args.model_type} listo para producción! 🎉
+Modelo {args.model_type} desplegado en stage '{stage_alias}'! 🎉
+
+Comandos de ejemplo:
+- Desarrollo: python scripts/deploy_model.py --model-type age-gender --stage dev
+- Pre-producción: python scripts/deploy_model.py --model-type age-gender --stage pre  
+- Producción: python scripts/deploy_model.py --model-type age-gender --stage prod
         """)
         
     except Exception as e:

@@ -53,7 +53,8 @@ def build_model():
 
 if __name__ == "__main__":
     train_ds, val_ds = make_datasets(ROOT, img_size=(160,160), batch=32, val_split=0.1)
-    with mlflow.start_run(run_name="mbv2_freeze") as run:
+    model_name = 'nn-age-gender'
+    with mlflow.start_run(run_name="using_latest_mlflow") as run:
         params = {"img": IMG, "epochs": 8, "batch": 32, "lr": 1e-3}
         mlflow.log_params(params)
         model, base = build_model()
@@ -74,22 +75,42 @@ if __name__ == "__main__":
         hist2 = model.fit(train_ds, validation_data=val_ds, epochs=8,
                           callbacks=[keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)])
 
-        # log métricas claves
-        mlflow.log_metric("val_age_mae", float(hist.history["val_age_mae"][-1]))
-        mlflow.log_metric("val_gender_acc", float(hist.history["val_gender_accuracy"][-1]))
+        # log métricas claves DESPUÉS del fine-tuning
+        mlflow.log_metric("val_age_mae", float(hist2.history["val_age_mae"][-1]))
+        mlflow.log_metric("val_gender_acc", float(hist2.history["val_gender_accuracy"][-1]))
+        
+        # También log métricas de ambas fases para comparación
+        mlflow.log_metric("phase1_val_age_mae", float(hist.history["val_age_mae"][-1]))
+        mlflow.log_metric("phase1_val_gender_acc", float(hist.history["val_gender_accuracy"][-1]))
+        mlflow.log_metric("phase2_val_age_mae", float(hist2.history["val_age_mae"][-1]))
+        mlflow.log_metric("phase2_val_gender_acc", float(hist2.history["val_gender_accuracy"][-1]))
 
         # guardar SavedModel
-        os.makedirs("artifacts", exist_ok=True)
-        saved_dir = "artifacts/age_gender_savedmodel"
-        model.save(saved_dir)
-        mlflow.log_artifacts(saved_dir, artifact_path="models/age_gender_model")
+        # os.makedirs("artifacts", exist_ok=True)
+        # saved_dir = "artifacts/age_gender_savedmodel"
+        # model.save(saved_dir)
+
+        # Crear input_example para el modelo
+        import numpy as np
+        input_example = np.random.random((1, 160, 160, 3)).astype(np.float32)
+        
+        # Usar tensorflow.log_model en lugar de sklearn para modelos de TensorFlow
+        mlflow.tensorflow.log_model(
+            model=model,
+            name=model_name,
+            registered_model_name=f"{model_name}-model",
+            input_example=input_example,
+            signature=mlflow.models.infer_signature(input_example, model.predict(input_example, verbose=0))
+        )
+
+        # mlflow.log_artifacts(saved_dir, artifact_path="models/age_gender_model")
 
         # === Curvas de entrenamiento como artefacto ===
         import matplotlib.pyplot as plt
         import numpy as np
         import os, mlflow
 
-        os.makedirs("artifacts", exist_ok=True)
+        # os.makedirs("artifacts", exist_ok=True)
         plt.figure()
         plt.plot(hist.history["gender_accuracy"], label="gender_acc")
         plt.plot(hist.history["val_gender_accuracy"], label="val_gender_acc")
@@ -125,8 +146,6 @@ if __name__ == "__main__":
         # exportar ONNX
         spec = (tf.TensorSpec((None, *IMG), tf.float32, name="input"),)
         onnx_model, _ = tf2onnx.convert.from_keras(model, input_signature=spec, opset=13)
-        with open("artifacts/age_gender.onnx","wb") as f:
+        with open(f"artifacts/{model_name}.onnx","wb") as f:
             f.write(onnx_model.SerializeToString())
-        mlflow.log_artifact("artifacts/age_gender.onnx", artifact_path="onnx")
-
-
+        mlflow.log_artifact(f"artifacts/{model_name}.onnx", artifact_path="onnx")
