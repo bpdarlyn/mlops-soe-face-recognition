@@ -1,7 +1,11 @@
 import os, mlflow, mlflow.keras, tf2onnx, tensorflow as tf
+import warnings
 from tensorflow import keras
 from tensorflow.keras import layers
 from training.datasets.utkface import make_datasets
+
+# Suprimir warnings de TensorFlow relacionados con limpieza de memoria
+warnings.filterwarnings("ignore", message=".*AtomicFunction.*", category=UserWarning)
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
@@ -78,7 +82,7 @@ if __name__ == "__main__":
         os.makedirs("artifacts", exist_ok=True)
         saved_dir = "artifacts/age_gender_savedmodel"
         model.save(saved_dir)
-        mlflow.log_artifacts(saved_dir, artifact_path="keras_model")
+        mlflow.log_artifacts(saved_dir, artifact_path="models/age_gender_model")
 
         # === Curvas de entrenamiento como artefacto ===
         import matplotlib.pyplot as plt

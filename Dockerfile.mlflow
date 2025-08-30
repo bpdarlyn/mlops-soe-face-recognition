@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv
-RUN pip install --no-cache-dir mlflow==2.14.3 PyMySQL==1.1.1 cryptography
+RUN pip install --no-cache-dir mlflow==3.1.4 PyMySQL==1.1.1 cryptography
 
 # Create artifacts directory with proper permissions
 RUN mkdir -p /mlflow/artifacts && chmod 777 /mlflow/artifacts
