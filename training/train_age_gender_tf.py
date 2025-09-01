@@ -86,7 +86,7 @@ if __name__ == "__main__":
         mlflow.log_metric("phase2_val_gender_acc", float(hist2.history["val_gender_accuracy"][-1]))
 
         # guardar SavedModel
-        # os.makedirs("artifacts", exist_ok=True)
+        os.makedirs("artifacts", exist_ok=True)
         # saved_dir = "artifacts/age_gender_savedmodel"
         # model.save(saved_dir)
 
